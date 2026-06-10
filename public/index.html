@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GearTrack</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:#f5f5f5;color:#1a1a1a}
+
+/* ── 認証画面 ── */
+.auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh}
+.auth-card{background:#fff;border-radius:16px;padding:32px;width:360px;border:1px solid #e8e8e8}
+.auth-card h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.auth-card h1 span{color:#1D9E75}
+.auth-card p{font-size:13px;color:#888;margin-bottom:24px}
+.auth-tabs{display:flex;gap:4px;background:#f0f0f0;padding:4px;border-radius:10px;margin-bottom:20px}
+.auth-tab{flex:1;text-align:center;padding:8px;border-radius:7px;cursor:pointer;font-size:14px;color:#666}
+.auth-tab.active{background:#fff;color:#1a1a1a;font-weight:500}
+.form-group{margin-bottom:12px}
+.form-group label{display:block;font-size:12px;color:#666;margin-bottom:4px}
+.form-group input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px}
+.form-group input:focus{outline:none;border-color:#1D9E75}
+.auth-btn{width:100%;padding:11px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer;margin-top:4px}
+.auth-btn:hover{background:#0F6E56}
+.auth-error{background:#FCEBEB;color:#A32D2D;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:12px;display:none}
+
+/* ── アプリ画面 ── */
+.app{display:flex;height:100vh;overflow:hidden;display:none}
+.sidebar{width:200px;background:#fff;border-right:1px solid #e8e8e8;display:flex;flex-direction:column;flex-shrink:0}
+.logo{padding:20px 16px 16px;font-size:17px;font-weight:700;border-bottom:1px solid #e8e8e8}
+.logo span{color:#1D9E75}
+.nav{padding:12px 8px;flex:1}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:14px;color:#666;transition:background .15s}
+.nav-item:hover{background:#f0f0f0}
+.nav-item.active{background:#E1F5EE;color:#0F6E56;font-weight:500}
+.nav-item i{font-size:18px}
+.nav-bottom{padding:12px 8px;border-top:1px solid #e8e8e8}
+.user-info{padding:8px 10px;font-size:13px;color:#888}
+.user-name{font-weight:500;color:#1a1a1a;font-size:14px}
+.main{flex:1;overflow-y:auto;padding:24px}
+.page{display:none}
+.page.active{display:block}
+.page-header{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between}
+.page-header h1{font-size:20px;font-weight:600}
+.page-header p{font-size:13px;color:#888;margin-top:4px}
+.strava-banner{background:#E1F5EE;border:1px solid #5DCAA5;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.strava-banner.off{background:#f5f5f5;border-color:#ddd}
+.dot{width:9px;height:9px;border-radius:50%;background:#ccc;margin-right:8px;display:inline-block}
+.dot.on{background:#1D9E75}
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+.metric{background:#f0f0f0;border-radius:8px;padding:14px 16px}
+.metric .lbl{font-size:12px;color:#666;margin-bottom:4px}
+.metric .val{font-size:22px;font-weight:600}
+.val.green{color:#0F6E56}.val.red{color:#A32D2D}.val.amber{color:#BA7517}
+.sec-title{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;color:#1a1a1a;transition:background .15s}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#1D9E75;color:#fff;border-color:#1D9E75}
+.btn.primary:hover{background:#0F6E56}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn.danger{background:#FCEBEB;color:#A32D2D;border-color:#F09595}
+.badge{display:inline-block;padding:3px 10px;border-radius:6px;font-size:11px;font-weight:600}
+.badge.ok{background:#E1F5EE;color:#0F6E56}
+.badge.warn{background:#FAEEDA;color:#854F0B}
+.badge.danger{background:#FCEBEB;color:#A32D2D}
+.badge.none{background:#f0f0f0;color:#888}
+.badge.blue{background:#E6F1FB;color:#185FA5}
+.pbar{height:6px;background:#eee;border-radius:3px;overflow:hidden;margin-bottom:5px}
+.pbar-fill{height:100%;border-radius:3px;transition:width .3s}
+.pbar-fill.ok{background:#1D9E75}.pbar-fill.warn{background:#EF9F27}.pbar-fill.danger{background:#E24B4A}.pbar-fill.none{background:#ccc}
+.pbar-labels{display:flex;justify-content:space-between;font-size:11px;color:#888}
+.gear-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:14px 16px;margin-bottom:8px}
+.gear-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.gear-name{font-weight:500;font-size:14px}
+.gear-meta{font-size:11px;color:#aaa;margin-bottom:8px}
+.gear-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;align-items:center}
+input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;color:#333;background:#fff}
+.alert-row{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;margin-bottom:8px;font-size:13px}
+.alert-row.warn{background:#FAEEDA;color:#633806}
+.alert-row.danger{background:#FCEBEB;color:#501313}
+.product-item{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:16px;margin-bottom:10px;cursor:pointer;transition:border-color .15s}
+.product-item:hover{border-color:#aaa}
+.pli-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+.pli-stat{background:#f5f5f5;border-radius:8px;padding:8px 10px}
+.pli-stat .sl{font-size:10px;color:#888}
+.pli-stat .sv{font-size:13px;font-weight:600}
+.user-bar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin-bottom:3px}
+.ub-h{background:#1D9E75}.ub-m{background:#378ADD}.ub-l{background:#EF9F27}
+.ub-legend{display:flex;gap:10px;font-size:10px;color:#888}
+.ub-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:2px;vertical-align:middle}
+.detail-panel{background:#fff;border:1px solid #e8e8e8;border-radius:16px;padding:20px;margin-bottom:16px}
+.detail-panel h2{font-size:16px;font-weight:600;margin-bottom:14px}
+.cmp-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cmp-label{width:150px;flex-shrink:0;font-size:12px;color:#888;text-align:right}
+.cmp-track{flex:1;height:18px;background:#eee;border-radius:4px;overflow:hidden}
+.cmp-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding:0 8px;font-size:10px;font-weight:600;color:#fff}
+.review-item{border-top:1px solid #f0f0f0;padding:10px 0}
+.review-meta{display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px}
+.review-text{font-size:13px;color:#666}
+.stars{color:#EF9F27;font-size:13px}
+.stat-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:16px;margin-bottom:12px}
+.stat-card h3{font-size:12px;font-weight:600;color:#888;text-transform:uppercase;margin-bottom:12px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-lbl{width:90px;flex-shrink:0;font-size:11px;color:#888;text-align:right}
+.bar-track{flex:1;height:18px;background:#eee;border-radius:4px;overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:#fff;font-weight:600}
+.seg-bar{display:flex;height:12px;border-radius:5px;overflow:hidden;margin:4px 0}
+.reward-card{background:#fff;border:1px solid #e8e8e8;border-radius:12px;padding:16px;margin-bottom:10px}
+.reward-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.reward-icon{width:40px;height:40px;border-radius:10px;background:#E1F5EE;display:flex;align-items:center;justify-content:center;color:#0F6E56;font-size:20px}
+.coupon{background:#fff;border:2px dashed #5DCAA5;border-radius:12px;padding:16px;text-align:center;margin-bottom:10px}
+.coupon-pct{font-size:28px;font-weight:700;color:#0F6E56}
+.coupon-code{font-family:monospace;background:#E1F5EE;padding:4px 12px;border-radius:6px;display:inline-block;margin-top:6px;color:#085041;font-size:13px}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:16px;padding:24px;width:380px;max-width:95vw;max-height:90vh;overflow-y:auto}
+.modal h2{font-size:16px;font-weight:600;margin-bottom:16px}
+.modal .form-group input,.modal .form-group select,.modal .form-group textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fff;color:#1a1a1a;font-family:inherit}
+.modal .form-group textarea{height:70px;resize:vertical}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.tab-bar{display:flex;gap:4px;margin-bottom:16px;background:#f0f0f0;padding:4px;border-radius:10px}
+.tab{flex:1;text-align:center;padding:7px;border-radius:7px;cursor:pointer;font-size:13px;color:#666}
+.tab.active{background:#fff;color:#1a1a1a;font-weight:500}
+</style>
+</head>
+<body>
+
+<!-- ── 認証画面 ── -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <h1>Gear<span>Track</span></h1>
+    <p>ロードバイクのギア消耗を自動管理</p>
+    <div class="auth-tabs">
+      <div class="auth-tab active" onclick="switchAuthTab('login',this)">ログイン</div>
+      <div class="auth-tab" onclick="switchAuthTab('register',this)">新規登録</div>
+    </div>
+    <div class="auth-error" id="auth-error"></div>
+    <div id="login-form">
+      <div class="form-group"><label>メールアドレス</label><input type="email" id="login-email" placeholder="example@email.com"></div>
+      <div class="form-group"><label>パスワード</label><input type="password" id="login-password" placeholder="パスワード"></div>
+      <button class="auth-btn" onclick="login()">ログイン</button>
+    </div>
+    <div id="register-form" style="display:none">
+      <div class="form-group"><label>名前</label><input type="text" id="reg-name" placeholder="山田 太郎"></div>
+      <div class="form-group"><label>メールアドレス</label><input type="email" id="reg-email" placeholder="example@email.com"></div>
+      <div class="form-group"><label>パスワード</label><input type="password" id="reg-password" placeholder="6文字以上"></div>
+      <button class="auth-btn" onclick="register()">アカウント作成</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── アプリ画面 ── -->
+<div class="app" id="app">
+  <div class="sidebar">
+    <div class="logo">Gear<span>Track</span></div>
+    <nav class="nav">
+      <div class="nav-item active" onclick="showPage('dashboard',this)"><i class="ti ti-layout-dashboard"></i>ダッシュボード</div>
+      <div class="nav-item" onclick="showPage('gears',this)"><i class="ti ti-tools"></i>ギア管理</div>
+      <div class="nav-item" onclick="showPage('products',this)"><i class="ti ti-package"></i>商品DB</div>
+      <div class="nav-item" onclick="showPage('stats',this)"><i class="ti ti-chart-bar"></i>統計</div>
+      <div class="nav-item" onclick="showPage('rewards',this)"><i class="ti ti-gift"></i>リワード</div>
+      <div class="nav-item" onclick="showPage('settings',this)"><i class="ti ti-settings"></i>設定</div>
+    </nav>
+    <div class="nav-bottom">
+      <div class="user-info">
+        <div class="user-name" id="sidebar-username"></div>
+        <div style="margin-top:2px"><button class="btn sm danger" onclick="logout()" style="font-size:11px;padding:3px 8px">ログアウト</button></div>
+      </div>
+    </div>
+  </div>
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header"><div><h1>ダッシュボード</h1><p id="dash-sync-info">読み込み中...</p></div></div>
+      <div id="strava-banner" class="strava-banner off">
+        <div>
+          <div style="display:flex;align-items:center"><span class="dot" id="strava-dot"></span><span id="strava-text" style="font-size:13px;font-weight:500">Strava未連携</span></div>
+          <div style="font-size:12px;color:#666;margin-top:3px" id="strava-sub"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn sm" id="sync-btn" onclick="syncNow()" style="display:none"><i class="ti ti-refresh"></i>同期</button>
+          <a href="/auth"><button class="btn primary sm" id="connect-btn">Stravaで連携</button></a>
+          <button class="btn sm" id="disconnect-btn" onclick="location.href='/strava/logout'" style="display:none">解除</button>
+        </div>
+      </div>
+      <div class="cards-grid">
+        <div class="metric"><div class="lbl">取得アクティビティ</div><div class="val green" id="m-count">—</div></div>
+        <div class="metric"><div class="lbl">要交換パーツ</div><div class="val red" id="m-danger">0</div></div>
+        <div class="metric"><div class="lbl">注意パーツ</div><div class="val amber" id="m-warn">0</div></div>
+      </div>
+      <div class="sec-title">アラート</div>
+      <div id="alerts"></div>
+    </div>
+
+    <!-- GEARS -->
+    <div class="page" id="page-gears">
+      <div class="page-header">
+        <div><h1>ギア管理</h1><p>使用開始日を設定すると走行距離が自動計算されます</p></div>
+        <button class="btn primary" onclick="document.getElementById('addGearModal').classList.add('open')"><i class="ti ti-plus"></i>追加</button>
+      </div>
+      <div id="gear-list"></div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="page" id="page-products">
+      <div class="page-header">
+        <div><h1>商品データベース</h1><p>実走データ・レビュー・競合比較</p></div>
+        <button class="btn primary" onclick="document.getElementById('addProductModal').classList.add('open')"><i class="ti ti-plus"></i>商品登録</button>
+      </div>
+      <div class="tab-bar">
+        <div class="tab active" onclick="filterProducts('all',this)">すべて</div>
+        <div class="tab" onclick="filterProducts('tire',this)">タイヤ</div>
+        <div class="tab" onclick="filterProducts('chain',this)">チェーン</div>
+        <div class="tab" onclick="filterProducts('wheel',this)">ホイール</div>
+      </div>
+      <div id="product-list"></div>
+      <div id="product-detail"></div>
+    </div>
+
+    <!-- STATS -->
+    <div class="page" id="page-stats">
+      <div class="page-header"><div><h1>統計</h1><p>カテゴリ別・商品別・ユーザー層別の消耗データ</p></div></div>
+      <div class="cards-grid">
+        <div class="metric"><div class="lbl">登録ユーザー数</div><div class="val" id="stat-users">—</div></div>
+        <div class="metric"><div class="lbl">登録商品数</div><div class="val" id="stat-products">—</div></div>
+        <div class="metric"><div class="lbl">蓄積走行データ</div><div class="val green">42M km</div></div>
+      </div>
+      <div id="stats-content"></div>
+    </div>
+
+    <!-- REWARDS -->
+    <div class="page" id="page-rewards">
+      <div class="page-header"><div><h1>リワード</h1><p>メーカー連携特典</p></div></div>
+      <div class="sec-title" style="margin-bottom:10px">獲得済みクーポン</div>
+      <div id="coupons"></div>
+      <div class="sec-title" style="margin-bottom:10px;margin-top:16px">進行中</div>
+      <div id="reward-progress"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="page-header"><div><h1>設定</h1></div></div>
+      <div style="max-width:400px">
+        <div class="gear-card" style="margin-bottom:12px">
+          <div style="font-weight:500;margin-bottom:12px">アカウント</div>
+          <div style="font-size:13px;color:#888" id="settings-user"></div>
+        </div>
+        <div class="gear-card" style="margin-bottom:12px">
+          <div style="font-weight:500;margin-bottom:12px">Strava 連携</div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div style="font-size:13px;color:#888" id="settings-strava">未連携</div>
+            <button class="btn sm danger" onclick="location.href='/strava/logout'">解除</button>
+          </div>
+        </div>
+        <div class="gear-card">
+          <div style="font-weight:500;margin-bottom:12px">通知設定</div>
+          <div style="font-size:13px;display:flex;flex-direction:column;gap:10px">
+            <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> 80%到達時に通知</label>
+            <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" checked> 交換目安到達時に通知</label>
+            <label style="display:flex;align-items:center;gap:8px"><input type="checkbox"> リワード獲得時に通知</label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-bg" id="addGearModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <h2>ギアを追加</h2>
+    <div class="form-group"><label>カテゴリ</label>
+      <select id="g-cat"><option value="tire">タイヤ</option><option value="chain">チェーン</option><option value="wheel">ホイール</option><option value="bar">バーテープ</option><option value="brake">ブレーキパッド</option><option value="custom">カスタム</option></select>
+    </div>
+    <div class="form-group"><label>名前</label><input type="text" id="g-name" placeholder="例: リアタイヤ"></div>
+    <div class="form-group"><label>商品名（任意）</label><input type="text" id="g-product" placeholder="例: Continental GP5000"></div>
+    <div class="form-group"><label>交換目安距離 (km)</label><input type="number" id="g-limit" value="4000"></div>
+    <div class="form-group"><label>使用開始日</label><input type="date" id="g-start"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('addGearModal').classList.remove('open')">キャンセル</button>
+      <button class="btn primary" onclick="addGear()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="addProductModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <h2>商品を登録</h2>
+    <div class="form-group"><label>カテゴリ</label>
+      <select id="p-cat"><option value="tire">タイヤ</option><option value="chain">チェーン</option><option value="wheel">ホイール</option></select>
+    </div>
+    <div class="form-group"><label>ブランド</label><input type="text" id="p-brand" placeholder="例: Continental"></div>
+    <div class="form-group"><label>モデル名</label><input type="text" id="p-name" placeholder="例: GP5000 28c"></div>
+    <div class="form-group"><label>実感交換距離 (km)</label><input type="number" id="p-km" value="4000"></div>
+    <div class="form-group"><label>評価</label>
+      <div id="star-input" style="display:flex;gap:6px;font-size:24px;cursor:pointer">
+        <span onclick="setStar(1)">☆</span><span onclick="setStar(2)">☆</span><span onclick="setStar(3)">☆</span><span onclick="setStar(4)">☆</span><span onclick="setStar(5)">☆</span>
+      </div>
+    </div>
+    <div class="form-group"><label>レビュー</label><textarea id="p-review" placeholder="例: ヘビーに使っても4000km持った。"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('addProductModal').classList.remove('open')">キャンセル</button>
+      <button class="btn primary" onclick="addProduct()">登録</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let starRating = 0;
+let productCat = 'all';
+
+// ── 認証 ──────────────────────────────────────────
+function switchAuthTab(tab, el) {
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.getElementById('auth-error').style.display = 'none';
+}
+
+function showAuthError(msg) {
+  const el = document.getElementById('auth-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function login() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) return showAuthError('メールアドレスとパスワードを入力してください');
+  const res = await fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({email, password}) }).then(r=>r.json());
+  if (res.error) return showAuthError(res.error);
+  showApp(res.name);
+  loadAll();
+}
+
+async function register() {
+  const name     = document.getElementById('reg-name').value.trim();
+  const email    = document.getElementById('reg-email').value.trim();
+  const password = document.getElementById('reg-password').value;
+  if (!name || !email || !password) return showAuthError('全項目を入力してください');
+  if (password.length < 6) return showAuthError('パスワードは6文字以上にしてください');
+  const res = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, email, password}) }).then(r=>r.json());
+  if (res.error) return showAuthError(res.error);
+  showApp(res.name);
+  loadAll();
+}
+
+async function logout() {
+  await fetch('/api/auth/logout', { method:'POST' });
+  location.reload();
+}
+
+function showApp(name) {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('sidebar-username').textContent = name;
+  document.getElementById('settings-user').textContent = name + ' でログイン中';
+}
+
+// ── 起動時チェック ────────────────────────────────
+async function init() {
+  const me = await fetch('/api/auth/me').then(r => r.json());
+  if (me.loggedIn) {
+    showApp(me.name);
+    loadAll();
+  }
+}
+
+// ── データロード ──────────────────────────────────
+async function loadAll() {
+  const [status, gears] = await Promise.all([
+    fetch('/api/status').then(r => r.json()),
+    fetch('/api/gears').then(r => r.json()),
+  ]);
+  renderDashboard(status, gears);
+  renderGears(gears);
+  if (status.athlete) {
+    document.getElementById('settings-strava').textContent = status.athlete + ' · 連携中';
+  }
+}
+
+function renderDashboard(status, gears) {
+  const banner = document.getElementById('strava-banner');
+  const dot    = document.getElementById('strava-dot');
+  if (status.connected) {
+    banner.classList.remove('off');
+    dot.classList.add('on');
+    document.getElementById('strava-text').textContent = status.athlete + ' · 連携中';
+    document.getElementById('strava-sub').textContent  = '最終同期: ' + (status.last_sync || '未同期') + ' · ' + status.total_count + '件';
+    document.getElementById('sync-btn').style.display       = 'inline-flex';
+    document.getElementById('connect-btn').style.display    = 'none';
+    document.getElementById('disconnect-btn').style.display = 'inline-block';
+    document.getElementById('dash-sync-info').textContent   = '最終同期: ' + (status.last_sync || '未同期');
+    document.getElementById('m-count').textContent = status.total_count + ' 件';
+  } else {
+    document.getElementById('dash-sync-info').textContent = 'Strava未連携';
+  }
+  const dangers = gears.filter(g => g.start_date && g.used / g.limit >= 1);
+  const warns   = gears.filter(g => g.start_date && g.used / g.limit >= 0.8 && g.used / g.limit < 1);
+  document.getElementById('m-danger').textContent = dangers.length;
+  document.getElementById('m-warn').textContent   = warns.length;
+  const alertEl = document.getElementById('alerts');
+  const all = [
+    ...dangers.map(g => ({ type:'danger', msg:`<strong>${g.name}</strong> — 交換目安を超過 (${g.used.toLocaleString()} / ${g.limit.toLocaleString()} km)` })),
+    ...warns.map(g   => ({ type:'warn',   msg:`<strong>${g.name}</strong> — まもなく交換目安 (残 ${(g.limit-g.used).toLocaleString()} km)` })),
+  ];
+  alertEl.innerHTML = all.length
+    ? all.map(a => `<div class="alert-row ${a.type}"><i class="ti ti-alert-${a.type==='danger'?'triangle':'circle'}" style="font-size:18px;flex-shrink:0"></i><div>${a.msg}</div></div>`).join('')
+    : '<div style="font-size:13px;color:#aaa;padding:8px 0">アラートはありません ✓</div>';
+}
+
+function renderGears(gears) {
+  document.getElementById('gear-list').innerHTML = gears.map(g => {
+    const hasDate = !!g.start_date;
+    const pct  = hasDate ? Math.min(Math.round(g.used / g.limit * 100), 100) : 0;
+    const s    = !hasDate ? 'none' : pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : 'ok';
+    const lbl  = !hasDate ? '開始日未設定' : s==='danger' ? '要交換' : s==='warn' ? '注意' : '正常';
+    return `<div class="gear-card">
+      <div class="gear-head"><span class="gear-name">${g.name}</span><span class="badge ${s}">${lbl}</span></div>
+      <div class="gear-meta">${g.product ? g.product + ' · ' : ''}目安 ${g.limit.toLocaleString()} km</div>
+      <div class="pbar"><div class="pbar-fill ${s}" style="width:${pct}%"></div></div>
+      <div class="pbar-labels">
+        <span>${hasDate ? g.used.toLocaleString() + ' km 使用' : '—'}</span>
+        <span>${hasDate ? '残り ' + Math.max(0, g.limit - g.used).toLocaleString() + ' km' : ''}</span>
+      </div>
+      <div class="gear-actions">
+        <input type="date" value="${g.start_date||''}" onchange="setStartDate(${g.id},this.value)">
+        <button class="btn sm danger" onclick="resetGear(${g.id})">交換済み</button>
+        <button class="btn sm" onclick="deleteGear(${g.id})">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function addGear() {
+  const name = document.getElementById('g-name').value.trim();
+  const limit = document.getElementById('g-limit').value;
+  if (!name || !limit) return alert('名前と交換目安距離を入力してください');
+  await fetch('/api/gears', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ name, cat: document.getElementById('g-cat').value, limit, start_date: document.getElementById('g-start').value||null, product: document.getElementById('g-product').value }) });
+  document.getElementById('addGearModal').classList.remove('open');
+  loadAll();
+}
+
+async function setStartDate(id, date) {
+  await fetch('/api/gears/'+id+'/start_date', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({start_date:date}) });
+  loadAll();
+}
+
+async function resetGear(id) {
+  if (!confirm('交換済みにしますか？今日が新しい使用開始日になります。')) return;
+  await fetch('/api/gears/'+id+'/reset', { method:'POST' });
+  loadAll();
+}
+
+async function deleteGear(id) {
+  if (!confirm('削除しますか？')) return;
+  await fetch('/api/gears/'+id, { method:'DELETE' });
+  loadAll();
+}
+
+async function syncNow() {
+  const btn = document.getElementById('sync-btn');
+  btn.innerHTML = '<i class="ti ti-refresh"></i>同期中...';
+  btn.disabled = true;
+  await fetch('/api/sync', { method:'POST' });
+  btn.innerHTML = '<i class="ti ti-refresh"></i>同期';
+  btn.disabled = false;
+  loadAll();
+}
+
+async function loadProducts() {
+  const data = await fetch('/api/products?cat='+productCat).then(r=>r.json());
+  const colors = ['#1D9E75','#378ADD','#EF9F27','#D85A30'];
+  document.getElementById('product-list').innerHTML = data.map(p => `
+    <div class="product-item" onclick="showProductDetail(${p.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div><div style="font-size:11px;color:#888">${p.brand}</div><div style="font-weight:500;font-size:15px">${p.name}</div></div>
+        <span class="badge blue">${p.cat==='tire'?'タイヤ':p.cat==='chain'?'チェーン':'ホイール'}</span>
+      </div>
+      <div class="pli-meta">
+        <div class="pli-stat"><div class="sl">平均交換距離</div><div class="sv">${p.avgKm.toLocaleString()} km</div></div>
+        <div class="pli-stat"><div class="sl">登録ユーザー</div><div class="sv">${p.users.toLocaleString()}人</div></div>
+        <div class="pli-stat"><div class="sl">レビュー数</div><div class="sv">${p.reviews.length}件</div></div>
+        <div class="pli-stat"><div class="sl">ヘビー比率</div><div class="sv">${p.heavy}%</div></div>
+      </div>
+      <div class="user-bar"><div class="ub-h" style="width:${p.heavy}%"></div><div class="ub-m" style="width:${p.mid}%"></div><div class="ub-l" style="width:${p.light}%"></div></div>
+      <div class="ub-legend">
+        <span><span class="ub-dot" style="background:#1D9E75"></span>ヘビー ${p.heavy}%</span>
+        <span><span class="ub-dot" style="background:#378ADD"></span>ミドル ${p.mid}%</span>
+        <span><span class="ub-dot" style="background:#EF9F27"></span>ライト ${p.light}%</span>
+      </div>
+    </div>`).join('');
+  document.getElementById('product-detail').innerHTML = '';
+}
+
+function showProductDetail(id) {
+  fetch('/api/products').then(r=>r.json()).then(products => {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const colors = ['#1D9E75','#378ADD','#EF9F27','#D85A30'];
+    const maxKm  = Math.max(p.avgKm, ...p.rivals.map(r=>r.km), 1);
+    const cmpHTML = [{name:p.name,km:p.avgKm},...p.rivals].map((r,i)=>`
+      <div class="cmp-row">
+        <div class="cmp-label">${r.name}</div>
+        <div class="cmp-track"><div class="cmp-fill" style="width:${Math.round(r.km/maxKm*100)}%;background:${colors[i%4]}">${r.km.toLocaleString()} km</div></div>
+      </div>`).join('');
+    const revHTML = p.reviews.map(r=>`
+      <div class="review-item">
+        <div class="review-meta"><span style="font-weight:500">${r.user}</span><span style="color:#888">交換: ${r.km.toLocaleString()} km</span></div>
+        <div class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
+        <div class="review-text">${r.text}</div>
+      </div>`).join('');
+    document.getElementById('product-detail').innerHTML = `
+      <div class="detail-panel">
+        <h2>${p.brand} ${p.name}</h2>
+        <div style="font-size:13px;color:#888;margin-bottom:14px">登録 ${p.users.toLocaleString()}人 · 平均交換 ${p.avgKm.toLocaleString()} km</div>
+        <div class="sec-title">競合比較</div>${cmpHTML}
+        <div class="sec-title" style="margin-top:16px">レビュー</div>
+        ${revHTML||'<div style="font-size:13px;color:#aaa">レビューはまだありません</div>'}
+        <button class="btn sm primary" style="margin-top:12px" onclick="document.getElementById('addProductModal').classList.add('open')"><i class="ti ti-edit"></i>レビューを書く</button>
+      </div>`;
+    document.getElementById('product-detail').scrollIntoView({behavior:'smooth',block:'nearest'});
+  });
+}
+
+function filterProducts(cat,el) {
+  productCat=cat;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  loadProducts();
+}
+
+async function addProduct() {
+  const brand=document.getElementById('p-brand').value.trim();
+  const name=document.getElementById('p-name').value.trim();
+  if (!brand||!name) return alert('ブランドとモデル名を入力してください');
+  await fetch('/api/products',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({cat:document.getElementById('p-cat').value,brand,name,avgKm:document.getElementById('p-km').value,review:document.getElementById('p-review').value.trim(),stars:starRating||5})});
+  document.getElementById('addProductModal').classList.remove('open');
+  loadProducts();
+}
+
+function setStar(n) {
+  starRating=n;
+  document.querySelectorAll('#star-input span').forEach((s,i)=>{s.textContent=i<n?'★':'☆';s.style.color=i<n?'#EF9F27':'#ccc'});
+}
+
+async function loadStats() {
+  const [stats,products]=await Promise.all([fetch('/api/stats').then(r=>r.json()),fetch('/api/products').then(r=>r.json())]);
+  document.getElementById('stat-products').textContent=products.length;
+  const maxT=Math.max(stats.tireByLevel.heavy,stats.tireByLevel.mid,stats.tireByLevel.light);
+  const maxC=Math.max(stats.chainByLevel.heavy,stats.chainByLevel.mid,stats.chainByLevel.light);
+  const tp=stats.tireProducts, cp=stats.chainProducts;
+  const maxTP=Math.max(...tp.map(p=>p.avgKm),1), maxCP=Math.max(...cp.map(p=>p.avgKm),1);
+  document.getElementById('stats-content').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+      <div class="stat-card"><h3>タイヤ — 階級別平均交換距離</h3>
+        ${[['ヘビー 300km+',stats.tireByLevel.heavy,'#1D9E75'],['ミドル 100-300',stats.tireByLevel.mid,'#378ADD'],['ライト ~100km',stats.tireByLevel.light,'#EF9F27']]
+          .map(([l,v,c])=>`<div class="bar-row"><div class="bar-lbl">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxT*100)}%;background:${c}">${v.toLocaleString()} km</div></div></div>`).join('')}
+      </div>
+      <div class="stat-card"><h3>チェーン — 階級別平均交換距離</h3>
+        ${[['ヘビー 300km+',stats.chainByLevel.heavy,'#1D9E75'],['ミドル 100-300',stats.chainByLevel.mid,'#378ADD'],['ライト ~100km',stats.chainByLevel.light,'#EF9F27']]
+          .map(([l,v,c])=>`<div class="bar-row"><div class="bar-lbl">${l}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/maxC*100)}%;background:${c}">${v.toLocaleString()} km</div></div></div>`).join('')}
+      </div>
+      <div class="stat-card"><h3>タイヤ — 商品別交換距離</h3>
+        ${tp.map((p,i)=>`<div class="bar-row"><div class="bar-lbl">${p.name.split(' ')[0]}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.avgKm/maxTP*100)}%;background:${['#1D9E75','#378ADD','#EF9F27','#D85A30'][i%4]}">${p.avgKm.toLocaleString()} km</div></div></div>`).join('')}
+      </div>
+      <div class="stat-card"><h3>チェーン — 商品別交換距離</h3>
+        ${cp.map((p,i)=>`<div class="bar-row"><div class="bar-lbl">${p.name.split(' ')[0]}</div><div class="bar-track"><div class="bar-fill" style="width:${Math.round(p.avgKm/maxCP*100)}%;background:${['#1D9E75','#378ADD','#EF9F27','#D85A30'][i%4]}">${p.avgKm.toLocaleString()} km</div></div></div>`).join('')}
+      </div>
+    </div>
+    <div class="stat-card"><h3>商品別ユーザー層構成</h3>
+      ${products.map(p=>`
+        <div style="margin-bottom:10px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px">
+            <span style="font-weight:500">${p.brand} ${p.name}</span>
+            <span style="color:#888">H:${p.heavy}% M:${p.mid}% L:${p.light}%</span>
+          </div>
+          <div class="seg-bar"><div class="ub-h" style="width:${p.heavy}%"></div><div class="ub-m" style="width:${p.mid}%"></div><div class="ub-l" style="width:${p.light}%"></div></div>
+        </div>`).join('')}
+      <div class="ub-legend" style="margin-top:8px">
+        <span><span class="ub-dot" style="background:#1D9E75"></span>ヘビー (300km+/月)</span>
+        <span><span class="ub-dot" style="background:#378ADD"></span>ミドル (100-300km/月)</span>
+        <span><span class="ub-dot" style="background:#EF9F27"></span>ライト (~100km/月)</span>
+      </div>
+    </div>`;
+}
+
+async function loadRewards() {
+  const rewards=await fetch('/api/rewards').then(r=>r.json());
+  const earned=rewards.filter(r=>r.earned), ongoing=rewards.filter(r=>!r.earned);
+  document.getElementById('coupons').innerHTML=earned.length
+    ?earned.map(r=>`<div class="coupon"><div class="coupon-pct">${r.reward}</div><div style="font-size:12px;color:#888;margin-top:4px">${r.brand}</div><div class="coupon-code">${r.code}</div></div>`).join('')
+    :'<div style="font-size:13px;color:#aaa;margin-bottom:16px">獲得済みクーポンはまだありません</div>';
+  document.getElementById('reward-progress').innerHTML=ongoing.map(r=>{
+    const pct=Math.min(Math.round(r.current/r.target*100),100);
+    const s=pct>=80?'warn':'ok';
+    return `<div class="reward-card">
+      <div class="reward-head"><div class="reward-icon"><i class="ti ti-bike"></i></div>
+        <div><div style="font-weight:500;font-size:14px">${r.brand} — ${r.reward}</div><div style="font-size:12px;color:#888">${r.product} · ${r.target.toLocaleString()}km達成で獲得</div></div>
+      </div>
+      <div class="pbar"><div class="pbar-fill ${s}" style="width:${pct}%"></div></div>
+      <div class="pbar-labels"><span>${r.current.toLocaleString()} km</span><span>目標 ${r.target.toLocaleString()} km</span></div>
+    </div>`;
+  }).join('')||'<div style="font-size:13px;color:#aaa">進行中のリワードはありません</div>';
+}
+
+function showPage(id,el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  el.classList.add('active');
+  if (id==='stats')   loadStats();
+  if (id==='rewards') loadRewards();
+  if (id==='products') loadProducts();
+}
+
+init();
+</script>
+</body>
+</html>
