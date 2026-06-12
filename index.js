@@ -20,47 +20,7 @@ app.use(session({
   cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 },
 }));
 
-const DEFAULT_DATA = {
-  users: [],
-  gears: {},
-  products: [
-    { id:1, cat:'tire', brand:'Continental', name:'GP5000 28c', avgKm:4100, users:1240, heavy:68, mid:24, light:8,
-      reviews:[
-        { user:'Heavy (380km/month)', km:3980, stars:5, text:'Great grip even in rain. Lasted nearly 4000km.' },
-        { user:'Mid (180km/month)',   km:4300, stars:4, text:'Good value. Light users might get 5000km.' },
-      ],
-      rivals:[{name:'Corsa Pro',km:3900},{name:'P Zero Race',km:3750},{name:'Power Cup',km:3400}]
-    },
-    { id:2, cat:'tire', brand:'Vittoria', name:'Corsa Pro TLR', avgKm:3900, users:560, heavy:55, mid:35, light:10,
-      reviews:[{ user:'Heavy (420km/month)', km:3600, stars:4, text:'Best grip. Wears a bit fast.' }],
-      rivals:[{name:'GP5000',km:4100},{name:'P Zero Race',km:3750}]
-    },
-    { id:3, cat:'chain', brand:'Shimano', name:'CN-M7100', avgKm:3200, users:980, heavy:40, mid:45, light:15,
-      reviews:[{ user:'Mid (220km/month)', km:3100, stars:4, text:'Smooth shifting. Lasts with proper maintenance.' }],
-      rivals:[{name:'KMC X12-EL',km:3200},{name:'SRAM Red AXS',km:2700}]
-    },
-    { id:4, cat:'chain', brand:'KMC', name:'X12-EL', avgKm:3200, users:420, heavy:60, mid:30, light:10,
-      reviews:[{ user:'Heavy (350km/month)', km:2900, stars:5, text:'More durable than Shimano in my experience.' }],
-      rivals:[{name:'CN-M7100',km:3200},{name:'SRAM Red AXS',km:2700}]
-    },
-    { id:5, cat:'wheel', brand:'Zipp', name:'303 S', avgKm:18000, users:210, heavy:70, mid:25, light:5,
-      reviews:[{ user:'Heavy (400km/month)', km:16000, stars:5, text:'Excellent stiffness. Rim wear is minimal.' }],
-      rivals:[{name:'Fulcrum Racing 4',km:15000}]
-    },
-  ],
-  rewards: [
-    { id:1, brand:'Continental', product:'GP5000',   target:8000, reward:'15% OFF next purchase', code:'CONT-15-2024' },
-    { id:2, brand:'Shimano',     product:'CN-M7100', target:6000, reward:'Free grease',            code:'SHI-GREASE' },
-  ],
-};
-
-const DEFAULT_GEARS = [
-  { id:1, name:'Rear Tire',   cat:'tire',  limit:4000, used:0, start_date:null, product:'Continental GP5000' },
-  { id:2, name:'Front Tire',  cat:'tire',  limit:4000, used:0, start_date:null, product:'Continental GP5000' },
-  { id:3, name:'Chain',       cat:'chain', limit:3000, used:0, start_date:null, product:'Shimano CN-M7100' },
-  { id:4, name:'Bar Tape',    cat:'bar',   limit:5000, used:0, start_date:null, product:'' },
-  { id:5, name:'Brake Pads',  cat:'brake', limit:5000, used:0, start_date:null, product:'' },
-];
+const DEFAULT_DATA = { users: [], gears: {}, products: [], bikes: {}, actAssign: {} };
 
 function loadDB() {
   try {
@@ -68,17 +28,17 @@ function loadDB() {
   } catch(e) { console.error('DB load error:', e.message); }
   return JSON.parse(JSON.stringify(DEFAULT_DATA));
 }
-
 function saveDB() {
   try { fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), 'utf8'); }
   catch(e) { console.error('DB save error:', e.message); }
 }
 
 const db = loadDB();
-if (!db.users)    db.users    = [];
-if (!db.gears)    db.gears    = {};
-if (!db.products) db.products = DEFAULT_DATA.products;
-if (!db.rewards)  db.rewards  = DEFAULT_DATA.rewards;
+if (!db.users)     db.users     = [];
+if (!db.gears)     db.gears     = {};
+if (!db.products)  db.products  = [];
+if (!db.bikes)     db.bikes     = {};
+if (!db.actAssign) db.actAssign = {};
 
 const stravaTokens     = {};
 const stravaActivities = {};
@@ -88,14 +48,71 @@ function requireAuth(req, res, next) {
   next();
 }
 
+// ---- bikes ----
+function ensureBikes(uid) {
+  if (!db.bikes[uid] || !db.bikes[uid].length) {
+    db.bikes[uid] = [{ id: Date.now(), name: 'メインバイク', isMain: true }];
+    saveDB();
+  }
+  if (!db.bikes[uid].find(b => b.isMain)) db.bikes[uid][0].isMain = true;
+  return db.bikes[uid];
+}
+function mainBike(uid) {
+  const bikes = ensureBikes(uid);
+  return bikes.find(b => b.isMain) || bikes[0];
+}
+
+// ---- user tier: past 28 days weekly average ----
+function calcTier(userId) {
+  const acts = stravaActivities[userId];
+  if (!acts || !acts.length) return null;
+  const cutoff = Date.now() - 28 * 24 * 60 * 60 * 1000;
+  const totalKm = acts
+    .filter(a => new Date(a.start_date_local).getTime() >= cutoff)
+    .reduce((s, a) => s + a.distance / 1000, 0);
+  const weekly = totalKm / 4;
+  if (weekly >= 300) return 'heavy';
+  if (weekly >= 100) return 'mid';
+  return 'light';
+}
+function tierLabel(t) {
+  return t === 'heavy' ? 'ヘビー' : t === 'mid' ? 'ミドル' : t === 'light' ? 'ライト' : '未連携';
+}
+
+// ---- products ----
+function productView(p) {
+  const reviews = p.reviews || [];
+  const kms     = reviews.map(r => r.km).filter(k => k > 0);
+  const avgKm   = kms.length ? Math.round(kms.reduce((a,b)=>a+b,0) / kms.length) : 0;
+  const tiers   = { heavy:0, mid:0, light:0, unknown:0 };
+  reviews.forEach(r => { tiers[r.tier || 'unknown']++; });
+  const total   = reviews.length || 1;
+  return {
+    id: p.id, cat: p.cat, brand: p.brand, type: p.type || '', name: p.name,
+    avgKm,
+    users: new Set(reviews.map(r => r.userId)).size,
+    reviewCount: reviews.length,
+    heavy: Math.round(tiers.heavy / total * 100),
+    mid:   Math.round(tiers.mid   / total * 100),
+    light: Math.round(tiers.light / total * 100),
+    reviews: reviews.map(r => ({
+      user: r.user, tier: r.tier, tierLabel: tierLabel(r.tier),
+      km: r.km, stars: r.stars, text: r.text, date: r.date,
+    })),
+  };
+}
+function normalize(s) { return (s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+
+// ================= AUTH =================
 app.post('/api/auth/register', async (req, res) => {
   const { email, password, name } = req.body;
-  if (!email || !password || !name) return res.json({ error: 'All fields required' });
-  if (db.users.find(u => u.email === email)) return res.json({ error: 'Email already registered' });
+  if (!email || !password || !name) return res.json({ error: '全項目を入力してください' });
+  if (db.users.find(u => u.email === email)) return res.json({ error: 'このメールアドレスは登録済みです' });
   const hash = await bcrypt.hash(password, 10);
   const user = { id: Date.now(), email, name, password: hash, created_at: new Date().toISOString() };
   db.users.push(user);
-  db.gears[user.id] = JSON.parse(JSON.stringify(DEFAULT_GEARS));
+  db.gears[user.id] = [];
+  db.bikes[user.id] = [{ id: Date.now()+1, name: 'メインバイク', isMain: true }];
   saveDB();
   req.session.userId   = user.id;
   req.session.userName = user.name;
@@ -105,9 +122,9 @@ app.post('/api/auth/register', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   const user = db.users.find(u => u.email === email);
-  if (!user) return res.json({ error: 'Invalid email or password' });
+  if (!user) return res.json({ error: 'メールアドレスまたはパスワードが違います' });
   const ok = await bcrypt.compare(password, user.password);
-  if (!ok)  return res.json({ error: 'Invalid email or password' });
+  if (!ok)  return res.json({ error: 'メールアドレスまたはパスワードが違います' });
   req.session.userId   = user.id;
   req.session.userName = user.name;
   res.json({ ok: true, name: user.name });
@@ -120,6 +137,7 @@ app.get('/api/auth/me', (req, res) => {
   res.json({ loggedIn: true, name: req.session.userName, id: req.session.userId });
 });
 
+// ================= STRAVA =================
 app.get('/auth', requireAuth, (req, res) => {
   const host = process.env.RAILWAY_PUBLIC_DOMAIN
     ? 'https://' + process.env.RAILWAY_PUBLIC_DOMAIN
@@ -178,15 +196,22 @@ async function fetchActivities(userId) {
   stravaTokens[userId].total_count = all.length;
 }
 
+// gear distance = activities after start_date whose bike matches the gear's assigned bikes
 function recalcGears(userId) {
-  const acts  = stravaActivities[userId] || [];
-  const gears = db.gears[userId]         || [];
+  const acts   = stravaActivities[userId] || [];
+  const gears  = db.gears[userId]         || [];
+  const main   = mainBike(userId);
+  const assign = db.actAssign[userId]     || {};
   gears.forEach(g => {
     if (!g.start_date) { g.used = 0; return; }
+    const gearBikes = (g.bikeIds && g.bikeIds.length) ? g.bikeIds : (main ? [main.id] : []);
     const start = new Date(g.start_date).getTime();
     g.used = Math.round(
-      acts.filter(a => new Date(a.start_date_local).getTime() >= start)
-          .reduce((sum, a) => sum + a.distance / 1000, 0)
+      acts.filter(a => {
+        if (new Date(a.start_date_local).getTime() < start) return false;
+        const actBike = assign[a.id] || (main && main.id);
+        return gearBikes.includes(actBike);
+      }).reduce((sum, a) => sum + a.distance / 1000, 0)
     );
   });
 }
@@ -205,27 +230,129 @@ async function refreshToken(userId) {
   token.expires_at    = data.expires_at;
 }
 
+// ================= STATUS =================
 app.get('/api/status', requireAuth, (req, res) => {
   const uid   = req.session.userId;
   const token = stravaTokens[uid];
-  const acts  = stravaActivities[uid] || [];
+  const tier  = calcTier(uid);
   res.json({
     connected:   !!token,
     athlete:     token?.athlete_name  || null,
     last_sync:   token?.last_sync     || null,
     total_count: token?.total_count   || 0,
-    activities:  acts.slice(0, 10),
+    tier, tierLabel: tierLabel(tier),
   });
 });
 
-app.get('/api/gears', requireAuth, (req, res) => res.json(db.gears[req.session.userId] || []));
+// ================= BIKES =================
+app.get('/api/bikes', requireAuth, (req, res) => res.json(ensureBikes(req.session.userId)));
+
+app.post('/api/bikes', requireAuth, (req, res) => {
+  const uid = req.session.userId;
+  const bikes = ensureBikes(uid);
+  const { name } = req.body;
+  if (!name || !name.trim()) return res.json({ error: '名前を入力してください' });
+  const b = { id: Date.now(), name: name.trim(), isMain: false };
+  bikes.push(b);
+  saveDB();
+  res.json(b);
+});
+
+app.post('/api/bikes/:id/rename', requireAuth, (req, res) => {
+  const bikes = ensureBikes(req.session.userId);
+  const b = bikes.find(x => x.id == req.params.id);
+  if (!b) return res.json({ error: 'not found' });
+  if (req.body.name && req.body.name.trim()) b.name = req.body.name.trim();
+  saveDB();
+  res.json(b);
+});
+
+app.post('/api/bikes/:id/main', requireAuth, (req, res) => {
+  const uid = req.session.userId;
+  const bikes = ensureBikes(uid);
+  bikes.forEach(b => { b.isMain = (b.id == req.params.id); });
+  recalcGears(uid);
+  saveDB();
+  res.json({ ok: true });
+});
+
+app.delete('/api/bikes/:id', requireAuth, (req, res) => {
+  const uid = req.session.userId;
+  const bikes = ensureBikes(uid);
+  if (bikes.length <= 1) return res.json({ error: '最後の1台は削除できません' });
+  const target = bikes.find(b => b.id == req.params.id);
+  if (!target) return res.json({ error: 'not found' });
+  db.bikes[uid] = bikes.filter(b => b.id != req.params.id);
+  if (target.isMain) db.bikes[uid][0].isMain = true;
+  // remove bike from gear assignments and activity assignments
+  (db.gears[uid] || []).forEach(g => {
+    if (g.bikeIds) g.bikeIds = g.bikeIds.filter(id => id != req.params.id);
+  });
+  const assign = db.actAssign[uid] || {};
+  Object.keys(assign).forEach(actId => { if (assign[actId] == req.params.id) delete assign[actId]; });
+  recalcGears(uid);
+  saveDB();
+  res.json({ ok: true });
+});
+
+// ================= ACTIVITIES (bike assignment) =================
+app.get('/api/activities', requireAuth, (req, res) => {
+  const uid    = req.session.userId;
+  const acts   = stravaActivities[uid] || [];
+  const main   = mainBike(uid);
+  const assign = db.actAssign[uid] || {};
+  res.json(acts.slice(0, 20).map(a => ({
+    id: a.id, name: a.name, type: a.type,
+    km: Math.round(a.distance / 100) / 10,
+    date: a.start_date_local ? a.start_date_local.slice(0, 10) : '',
+    bikeId: assign[a.id] || (main && main.id),
+  })));
+});
+
+app.post('/api/activities/:id/bike', requireAuth, (req, res) => {
+  const uid = req.session.userId;
+  if (!db.actAssign[uid]) db.actAssign[uid] = {};
+  const main = mainBike(uid);
+  const bikeId = Number(req.body.bikeId);
+  if (main && bikeId === main.id) delete db.actAssign[uid][req.params.id];
+  else db.actAssign[uid][req.params.id] = bikeId;
+  recalcGears(uid);
+  saveDB();
+  res.json({ ok: true });
+});
+
+// ================= GEARS =================
+app.get('/api/gears', requireAuth, (req, res) => {
+  const uid  = req.session.userId;
+  const main = mainBike(uid);
+  const gears = (db.gears[uid] || []).map(g => ({
+    ...g,
+    bikeIds: (g.bikeIds && g.bikeIds.length) ? g.bikeIds : (main ? [main.id] : []),
+  }));
+  res.json(gears);
+});
 
 app.post('/api/gears', requireAuth, (req, res) => {
   const uid = req.session.userId;
   if (!db.gears[uid]) db.gears[uid] = [];
-  const { name, cat, limit, start_date, product } = req.body;
-  const g = { id: Date.now(), name, cat: cat||'custom', limit: Number(limit), used:0, start_date: start_date||null, product: product||'' };
+  const { name, cat, limit, start_date, product, bikeIds } = req.body;
+  const g = {
+    id: Date.now(), name, cat: cat || 'custom', limit: Number(limit), used: 0,
+    start_date: start_date || null, product: product || '',
+    bikeIds: Array.isArray(bikeIds) && bikeIds.length ? bikeIds.map(Number) : [mainBike(uid).id],
+  };
   db.gears[uid].push(g);
+  recalcGears(uid);
+  saveDB();
+  res.json(g);
+});
+
+app.post('/api/gears/:id/bikes', requireAuth, (req, res) => {
+  const uid = req.session.userId;
+  const g = (db.gears[uid] || []).find(x => x.id == req.params.id);
+  if (!g) return res.json({ error: 'not found' });
+  const ids = Array.isArray(req.body.bikeIds) ? req.body.bikeIds.map(Number) : [];
+  g.bikeIds = ids.length ? ids : [mainBike(uid).id];
   recalcGears(uid);
   saveDB();
   res.json(g);
@@ -233,7 +360,7 @@ app.post('/api/gears', requireAuth, (req, res) => {
 
 app.post('/api/gears/:id/start_date', requireAuth, (req, res) => {
   const uid = req.session.userId;
-  const g = (db.gears[uid]||[]).find(x => x.id == req.params.id);
+  const g = (db.gears[uid] || []).find(x => x.id == req.params.id);
   if (!g) return res.json({ error: 'not found' });
   g.start_date = req.body.start_date;
   recalcGears(uid);
@@ -243,7 +370,7 @@ app.post('/api/gears/:id/start_date', requireAuth, (req, res) => {
 
 app.post('/api/gears/:id/reset', requireAuth, (req, res) => {
   const uid = req.session.userId;
-  const g = (db.gears[uid]||[]).find(x => x.id == req.params.id);
+  const g = (db.gears[uid] || []).find(x => x.id == req.params.id);
   if (!g) return res.json({ error: 'not found' });
   g.start_date = new Date().toISOString().slice(0, 10);
   recalcGears(uid);
@@ -253,7 +380,7 @@ app.post('/api/gears/:id/reset', requireAuth, (req, res) => {
 
 app.delete('/api/gears/:id', requireAuth, (req, res) => {
   const uid = req.session.userId;
-  db.gears[uid] = (db.gears[uid]||[]).filter(x => x.id != req.params.id);
+  db.gears[uid] = (db.gears[uid] || []).filter(x => x.id != req.params.id);
   saveDB();
   res.json({ ok: true });
 });
@@ -265,54 +392,124 @@ app.post('/api/sync', requireAuth, async (req, res) => {
     await fetchActivities(uid);
     recalcGears(uid);
     saveDB();
-    res.json({ ok: true, total_count: stravaTokens[uid].total_count, last_sync: stravaTokens[uid].last_sync });
+    res.json({ ok: true });
   } catch(e) { res.json({ error: e.message }); }
 });
 
+// ================= PRODUCT DB =================
 app.get('/api/products', (req, res) => {
+  const { cat, brand, type, q } = req.query;
+  let list = db.products;
+  if (cat && cat !== 'all') list = list.filter(p => p.cat === cat);
+  if (brand) list = list.filter(p => normalize(p.brand) === normalize(brand));
+  if (type)  list = list.filter(p => p.type === type);
+  if (q) {
+    const nq = normalize(q);
+    list = list.filter(p =>
+      normalize(p.brand).includes(nq) ||
+      normalize(p.name).includes(nq) ||
+      normalize(p.brand + ' ' + p.name).includes(nq)
+    );
+  }
+  res.json(list.map(productView).sort((a, b) => b.reviewCount - a.reviewCount));
+});
+
+app.get('/api/products/brands', (req, res) => {
   const { cat } = req.query;
-  res.json(cat && cat !== 'all' ? db.products.filter(p => p.cat === cat) : db.products);
+  const counts = {};
+  db.products.filter(p => !cat || p.cat === cat).forEach(p => {
+    counts[p.brand] = (counts[p.brand] || 0) + (p.reviews ? p.reviews.length : 0) + 1;
+  });
+  res.json(Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })));
 });
 
 app.post('/api/products', requireAuth, (req, res) => {
-  const { cat, brand, name, avgKm, review, stars } = req.body;
-  const existing = db.products.find(p => p.brand === brand && p.name === name);
-  if (existing) {
-    if (review) existing.reviews.push({ user: req.session.userName, km: Number(avgKm), stars: Number(stars)||5, text: review });
-    const allKm = existing.reviews.map(r => r.km);
-    existing.avgKm = Math.round(allKm.reduce((a,b)=>a+b,0) / allKm.length);
-    existing.users++;
-    saveDB();
-    return res.json(existing);
+  const { cat, brand, type, name, km, stars, review, force } = req.body;
+  if (!cat || !brand || !name) return res.json({ error: 'カテゴリ・メーカー・商品名は必須です' });
+  const nName = normalize(name);
+  const candidates = db.products.filter(p =>
+    p.cat === cat &&
+    normalize(p.brand) === normalize(brand) &&
+    (normalize(p.name) === nName || normalize(p.name).includes(nName) || nName.includes(normalize(p.name)))
+  );
+  if (candidates.length && !force) {
+    return res.json({ duplicate: true, candidates: candidates.map(productView) });
   }
-  const p = { id: Date.now(), cat, brand, name, avgKm: Number(avgKm), users:1, heavy:0, mid:0, light:0,
-    reviews: review ? [{ user: req.session.userName, km: Number(avgKm), stars: Number(stars)||5, text: review }] : [],
-    rivals: [],
+  const uid  = req.session.userId;
+  const tier = calcTier(uid);
+  const p = {
+    id: Date.now(), cat, brand: brand.trim(), type: type || '', name: name.trim(),
+    createdBy: uid, reviews: [],
   };
+  if (km || review) {
+    p.reviews.push({
+      userId: uid, user: req.session.userName, tier,
+      km: Number(km) || 0, stars: Number(stars) || 5, text: review || '',
+      date: new Date().toISOString().slice(0, 10),
+    });
+  }
   db.products.push(p);
   saveDB();
-  res.json(p);
+  res.json({ ok: true, product: productView(p) });
 });
 
-app.get('/api/rewards', requireAuth, (req, res) => {
-  const uid   = req.session.userId;
-  const gears = db.gears[uid] || [];
-  const result = db.rewards.map(r => {
-    const current = gears.filter(g => g.product && g.product.includes(r.brand)).reduce((s, g) => s + g.used, 0);
-    return { ...r, current, earned: current >= r.target };
+app.post('/api/products/:id/reviews', requireAuth, (req, res) => {
+  const p = db.products.find(x => x.id == req.params.id);
+  if (!p) return res.json({ error: 'not found' });
+  const uid  = req.session.userId;
+  const tier = calcTier(uid);
+  const { km, stars, review } = req.body;
+  if (!p.reviews) p.reviews = [];
+  p.reviews = p.reviews.filter(r => r.userId !== uid);
+  p.reviews.push({
+    userId: uid, user: req.session.userName, tier,
+    km: Number(km) || 0, stars: Number(stars) || 5, text: review || '',
+    date: new Date().toISOString().slice(0, 10),
   });
-  res.json(result);
+  saveDB();
+  res.json({ ok: true, product: productView(p) });
 });
 
-app.get('/api/stats', (req, res) => res.json({
-  userLevels:    { heavy:22, mid:45, light:33 },
-  tireByLevel:   { heavy:3920, mid:4400, light:4750 },
-  chainByLevel:  { heavy:2800, mid:3200, light:3500 },
-  tireProducts:  db.products.filter(p => p.cat==='tire').map(p  => ({ name:p.name, avgKm:p.avgKm, heavy:p.heavy, mid:p.mid, light:p.light })),
-  chainProducts: db.products.filter(p => p.cat==='chain').map(p => ({ name:p.name, avgKm:p.avgKm, heavy:p.heavy, mid:p.mid, light:p.light })),
-}));
+app.post('/api/products/merge', requireAuth, (req, res) => {
+  const { sourceId, targetId } = req.body;
+  if (sourceId == targetId) return res.json({ error: '同じ商品です' });
+  const source = db.products.find(p => p.id == sourceId);
+  const target = db.products.find(p => p.id == targetId);
+  if (!source || !target) return res.json({ error: 'not found' });
+  if (source.cat !== target.cat) return res.json({ error: 'カテゴリが異なる商品は統合できません' });
+  if (!target.reviews) target.reviews = [];
+  (source.reviews || []).forEach(r => {
+    if (!target.reviews.find(t => t.userId === r.userId)) target.reviews.push(r);
+  });
+  db.products = db.products.filter(p => p.id != sourceId);
+  saveDB();
+  res.json({ ok: true, product: productView(target) });
+});
+
+// ================= STATS =================
+app.get('/api/stats', (req, res) => {
+  function catStats(cat) {
+    const tiers = { heavy: [], mid: [], light: [] };
+    db.products.filter(p => p.cat === cat).forEach(p => {
+      (p.reviews || []).forEach(r => {
+        if (r.km > 0 && tiers[r.tier]) tiers[r.tier].push(r.km);
+      });
+    });
+    const avg = arr => arr.length ? Math.round(arr.reduce((a,b)=>a+b,0)/arr.length) : 0;
+    return { heavy: avg(tiers.heavy), mid: avg(tiers.mid), light: avg(tiers.light) };
+  }
+  res.json({
+    totalUsers:    db.users.length,
+    totalProducts: db.products.length,
+    tireByLevel:   catStats('tire'),
+    chainByLevel:  catStats('chain'),
+    tireProducts:  db.products.filter(p => p.cat==='tire').map(productView).sort((a,b)=>b.reviewCount-a.reviewCount).slice(0,8),
+    chainProducts: db.products.filter(p => p.cat==='chain').map(productView).sort((a,b)=>b.reviewCount-a.reviewCount).slice(0,8),
+    allProducts:   db.products.map(productView).sort((a,b)=>b.reviewCount-a.reviewCount).slice(0,15),
+  });
+});
 
 app.listen(PORT, () => {
   console.log('Server running on port ' + PORT);
-  console.log('Users:', db.users.length);
+  console.log('Users:', db.users.length, '/ Products:', db.products.length);
 });
