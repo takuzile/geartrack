@@ -170,6 +170,8 @@ input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-si
   .stat-card+.stat-card,div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important}
   .search-box{min-width:100%}
 }
+.powered-strava{display:flex;align-items:center;gap:6px;font-size:11px;color:#888;margin-top:10px}
+.powered-strava img{height:15px;vertical-align:middle}
 </style>
 </head>
 <body>
@@ -241,6 +243,10 @@ input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-si
           <a href="/auth"><button class="btn primary sm" id="connect-btn">Stravaで連携</button></a>
           <button class="btn sm" id="disconnect-btn" onclick="location.href='/strava/logout'" style="display:none">解除</button>
         </div>
+      </div>
+      <div class="powered-strava" id="powered-strava" style="display:none;justify-content:flex-end">
+        <span>Powered by</span>
+        <span style="background:#FC4C02;color:#fff;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.5px;font-size:11px">STRAVA</span>
       </div>
       <div class="cards-grid">
         <div class="metric"><div class="lbl">あなたの階級</div><div class="val green" id="m-tier">—</div></div>
@@ -513,6 +519,7 @@ function renderDashboard(status, gears) {
     document.getElementById('disconnect-btn').style.display = 'inline-block';
     document.getElementById('settings-strava').textContent = status.athlete + ' · 連携中';
     document.getElementById('dash-sync-info').textContent = '最終同期: ' + (status.last_sync||'—');
+    const ps = document.getElementById('powered-strava'); if (ps) ps.style.display = 'flex';
   } else {
     document.getElementById('dash-sync-info').textContent = 'Strava未連携';
   }
