@@ -141,6 +141,35 @@ input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-si
 .act-row:last-child{border-bottom:none}
 .act-row select{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff}
 .act-list{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;margin-bottom:16px}
+/* ===== スマホ専用(768px以下) ===== */
+.mobile-header{display:none}
+.mobile-tabbar{display:none}
+@media (max-width:768px){
+  .sidebar{display:none}
+  .app.show{flex-direction:column}
+  .main{padding:14px 14px 80px 14px}
+  .mobile-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#fff;border-bottom:1px solid #e8e8e8;position:sticky;top:0;z-index:40}
+  .mobile-header .mh-logo{font-size:17px;font-weight:700}
+  .mobile-header .mh-logo span{color:#1D9E75}
+  .mobile-header .mh-right{display:flex;align-items:center;gap:8px}
+  .mobile-tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e8e8e8;z-index:50;padding:6px 0 calc(6px + env(safe-area-inset-bottom))}
+  .mobile-tabbar .mt{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;cursor:pointer;color:#888;font-size:10px;border:none;background:none}
+  .mobile-tabbar .mt i{font-size:21px}
+  .mobile-tabbar .mt.active{color:#0F6E56}
+  .page-header{flex-direction:column}
+  .page-header h1{font-size:18px}
+  .cards-grid{grid-template-columns:1fr 1fr}
+  .pli-meta{grid-template-columns:1fr 1fr}
+  .modal{width:100%;height:100%;max-height:100%;border-radius:0;padding:20px 16px}
+  .modal-bg{align-items:stretch}
+  .tab-bar{overflow-x:auto;flex-wrap:nowrap}
+  .tab{flex:0 0 auto}
+  .gear-actions{gap:6px;flex-wrap:wrap}
+  .gear-actions input[type=date]{flex:1 1 100%;min-width:0}
+  .gear-actions .btn{flex:1 1 0;justify-content:center;min-width:0;white-space:nowrap;padding:7px 6px;font-size:12px}
+  .stat-card+.stat-card,div[style*="grid-template-columns:1fr 1fr"]{grid-template-columns:1fr !important}
+  .search-box{min-width:100%}
+}
 </style>
 </head>
 <body>
@@ -172,6 +201,14 @@ input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-si
 </div>
 
 <div class="app" id="app">
+  <!-- モバイルヘッダー -->
+  <div class="mobile-header">
+    <div class="mh-logo">Gear<span>Track</span></div>
+    <div class="mh-right">
+      <span class="tier-badge tier-none" id="mh-tier">未連携</span>
+      <button class="btn sm danger" onclick="logout()" style="font-size:11px;padding:4px 8px">ログアウト</button>
+    </div>
+  </div>
   <div class="sidebar">
     <div class="logo">Gear<span>Track</span></div>
     <nav class="nav">
@@ -289,6 +326,14 @@ input[type=date]{padding:4px 8px;border:1px solid #ddd;border-radius:6px;font-si
   </div>
 </div>
 
+<!-- モバイル下タブバー -->
+<div class="mobile-tabbar" id="mobile-tabbar">
+  <button class="mt active" data-page="dashboard" onclick="mobileNav('dashboard',this)"><i class="ti ti-layout-dashboard"></i>ホーム</button>
+  <button class="mt" data-page="gears" onclick="mobileNav('gears',this)"><i class="ti ti-tools"></i>ギア</button>
+  <button class="mt" data-page="products" onclick="mobileNav('products',this)"><i class="ti ti-package"></i>商品</button>
+  <button class="mt" data-page="stats" onclick="mobileNav('stats',this)"><i class="ti ti-chart-bar"></i>統計</button>
+  <button class="mt" data-page="settings" onclick="mobileNav('settings',this)"><i class="ti ti-settings"></i>設定</button>
+</div>
 <!-- ADD GEAR MODAL -->
 <div class="modal-bg" id="addGearModal" onclick="if(event.target===this)closeModal('addGearModal')">
   <div class="modal">
@@ -451,7 +496,10 @@ function renderTier(status) {
   el.textContent = status.tierLabel || '未連携';
   el.className = 'tier-badge tier-' + (status.tier || 'none');
   document.getElementById('m-tier').textContent = status.tierLabel || '—';
+const mh = document.getElementById('mh-tier');
+  if (mh) { mh.textContent = status.tierLabel || '未連携'; mh.className = 'tier-badge tier-' + (status.tier || 'none'); }
 }
+
 
 function renderDashboard(status, gears) {
   const banner = document.getElementById('strava-banner');
@@ -978,6 +1026,16 @@ function showPage(id, el) {
   el.classList.add('active');
   if (id==='products') { renderCatTabs(); loadProducts(); }
   if (id==='stats') loadStats();
+}
+// モバイル下タブ → 既存のshowPageを呼ぶ
+function mobileNav(id, el) {
+  document.querySelectorAll('.mobile-tabbar .mt').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  // 対応するサイドバーのnav-itemを探してshowPageを実行
+  const navItems = document.querySelectorAll('.nav-item');
+  const map = { dashboard:0, gears:1, products:2, stats:3, settings:4 };
+  const navEl = navItems[map[id]];
+  if (navEl) showPage(id, navEl);
 }
 
 init();
